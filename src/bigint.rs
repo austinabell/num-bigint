@@ -14,8 +14,10 @@ use std::str::{self, FromStr};
 use std::{i128, u128};
 use std::{i64, u64};
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 use serde;
+#[cfg(feature = "serde_derive")]
+use serde_bytes;
 
 use integer::{Integer, Roots};
 use traits::{
@@ -72,7 +74,7 @@ impl Mul<Sign> for Sign {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl serde::Serialize for Sign {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -81,14 +83,14 @@ impl serde::Serialize for Sign {
         // Note: do not change the serialization format, or it may break
         // forward and backward compatibility of serialized data!
         match *self {
-            Sign::Minus => (-1i8).serialize(serializer),
-            Sign::NoSign => 0i8.serialize(serializer),
-            Sign::Plus => 1i8.serialize(serializer),
+            Sign::Minus => 1u8.serialize(serializer),
+            Sign::NoSign => 0u8.serialize(serializer),
+            Sign::Plus => 0u8.serialize(serializer),
         }
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl<'de> serde::Deserialize<'de> for Sign {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -99,9 +101,8 @@ impl<'de> serde::Deserialize<'de> for Sign {
 
         let sign: i8 = serde::Deserialize::deserialize(deserializer)?;
         match sign {
-            -1 => Ok(Sign::Minus),
-            0 => Ok(Sign::NoSign),
-            1 => Ok(Sign::Plus),
+            1 => Ok(Sign::Minus),
+            0 => Ok(Sign::Plus),
             _ => Err(D::Error::invalid_value(
                 Unexpected::Signed(sign.into()),
                 &"a sign of -1, 0, or 1",
@@ -2476,26 +2477,38 @@ impl IntDigits for BigInt {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl serde::Serialize for BigInt {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        // Note: do not change the serialization format, or it may break
-        // forward and backward compatibility of serialized data!
-        (self.sign, &self.data).serialize(serializer)
+        let (sign, mut bz) = self.to_bytes_be();
+        // Insert sign byte at start of encoded bytes
+        match sign {
+            Sign::Minus => bz.insert(0, 1),
+            _ => bz.insert(0, 0),
+        }
+
+        // Serialize as bytes
+        let value = serde_bytes::Bytes::new(&bz);
+        value.serialize(serializer)
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl<'de> serde::Deserialize<'de> for BigInt {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let (sign, data) = serde::Deserialize::deserialize(deserializer)?;
-        Ok(BigInt::from_biguint(sign, data))
+        let mut bz: Vec<u8> = serde_bytes::Deserialize::deserialize(deserializer)?;
+        let sign_byte = bz.remove(0);
+        let sign: Sign = match sign_byte {
+            1 => Sign::Minus,
+            _ => Sign::Plus,
+        };
+        Ok(BigInt::from_bytes_be(sign, &bz))
     }
 }
 

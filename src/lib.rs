@@ -109,8 +109,10 @@
 
 #[cfg(feature = "rand")]
 extern crate rand;
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 extern crate serde;
+#[cfg(feature = "serde_bytes")]
+extern crate serde_bytes;
 
 extern crate num_integer as integer;
 extern crate num_traits as traits;

@@ -15,8 +15,10 @@ use std::str::{self, FromStr};
 use std::{f32, f64};
 use std::{u64, u8};
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 use serde;
+#[cfg(feature = "serde_derive")]
+use serde_bytes;
 
 use integer::{Integer, Roots};
 use traits::{
@@ -2423,28 +2425,37 @@ fn u32_from_u128(n: u128) -> (u32, u32, u32, u32) {
     )
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl serde::Serialize for BigUint {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        // Note: do not change the serialization format, or it may break forward
-        // and backward compatibility of serialized data!  If we ever change the
-        // internal representation, we should still serialize in base-`u32`.
-        let data: &Vec<u32> = &self.data;
-        data.serialize(serializer)
+        let mut bz = self.to_bytes_be();
+
+        // Insert positive sign byte at start of encoded bytes
+        bz.insert(0, 0);
+
+        // Serialize as bytes
+        let value = serde_bytes::Bytes::new(&bz);
+        value.serialize(serializer)
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_derive")]
 impl<'de> serde::Deserialize<'de> for BigUint {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let data: Vec<u32> = Vec::deserialize(deserializer)?;
-        Ok(BigUint::new(data))
+        let mut bz: Vec<u8> = serde_bytes::Deserialize::deserialize(deserializer)?;
+        if bz.remove(0) != 0 {
+            return Err(serde::de::Error::custom(
+                "First byte must be 0 to decode as BigUint",
+            ));
+        }
+
+        Ok(BigUint::from_bytes_be(&bz))
     }
 }
 
