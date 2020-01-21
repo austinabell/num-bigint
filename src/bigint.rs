@@ -2487,7 +2487,8 @@ impl serde::Serialize for BigInt {
         // Insert sign byte at start of encoded bytes
         match sign {
             Sign::Minus => bz.insert(0, 1),
-            _ => bz.insert(0, 0),
+            Sign::Plus => bz.insert(0, 0),
+            Sign::NoSign => bz = vec![],
         }
 
         // Serialize as bytes
@@ -2503,10 +2504,18 @@ impl<'de> serde::Deserialize<'de> for BigInt {
         D: serde::Deserializer<'de>,
     {
         let mut bz: Vec<u8> = serde_bytes::Deserialize::deserialize(deserializer)?;
+        if bz.is_empty() {
+            return Ok(BigInt::zero());
+        }
         let sign_byte = bz.remove(0);
         let sign: Sign = match sign_byte {
             1 => Sign::Minus,
-            _ => Sign::Plus,
+            0 => Sign::Plus,
+            _ => {
+                return Err(serde::de::Error::custom(
+                    "First byte must be valid sign (0, 1)",
+                ));
+            }
         };
         Ok(BigInt::from_bytes_be(sign, &bz))
     }

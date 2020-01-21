@@ -2433,8 +2433,12 @@ impl serde::Serialize for BigUint {
     {
         let mut bz = self.to_bytes_be();
 
-        // Insert positive sign byte at start of encoded bytes
-        bz.insert(0, 0);
+        // Insert positive sign byte at start of encoded bytes if non-zero
+        if bz == vec![0] {
+            bz = vec![]
+        } else {
+            bz.insert(0, 0);
+        }
 
         // Serialize as bytes
         let value = serde_bytes::Bytes::new(&bz);
@@ -2449,6 +2453,10 @@ impl<'de> serde::Deserialize<'de> for BigUint {
         D: serde::Deserializer<'de>,
     {
         let mut bz: Vec<u8> = serde_bytes::Deserialize::deserialize(deserializer)?;
+        if bz.is_empty() {
+            return Ok(BigUint::zero());
+        }
+
         if bz.remove(0) != 0 {
             return Err(serde::de::Error::custom(
                 "First byte must be 0 to decode as BigUint",

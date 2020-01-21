@@ -16,13 +16,13 @@ use serde_test::{assert_tokens, Token};
 
 #[test]
 fn biguint_zero() {
-    let tokens = [Token::Bytes(&[0, 0])];
+    let tokens = [Token::Bytes(&[])];
     assert_tokens(&BigUint::zero(), &tokens);
 }
 
 #[test]
 fn bigint_zero() {
-    let tokens = [Token::Bytes(&[0, 0])];
+    let tokens = [Token::Bytes(&[])];
     assert_tokens(&BigInt::zero(), &tokens);
 }
 
